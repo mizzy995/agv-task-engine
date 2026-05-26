@@ -10,12 +10,15 @@ class Allocator:
         task
     ):
 
-        return sqrt(
-            (robot.x-task.x)**2+
-            (robot.y-task.y)**2
-        )
-
-
+        return sqrt((robot.x-task.x)**2 + (robot.y-task.y)**2)
+    
+    def calculate_consumption(
+        self,
+        robot,
+        task
+    ):
+        return  2 * self.calculate_distance(robot, task)
+    
     def allocate(
         self,
         robots,
@@ -23,13 +26,10 @@ class Allocator:
     ):
 
         assignments=[]
+        tasknotexec=[]
 
 
-        sorted_tasks=sorted(
-            tasks,
-            key=lambda t:t.priority,
-            reverse=True
-        )
+        sorted_tasks=sorted(tasks, key=lambda t:t.priority, reverse=True)
 
 
         for task in sorted_tasks:
@@ -40,34 +40,29 @@ class Allocator:
                 if (not r.busy) and (r.battery >= 20)
 
             ]
+            
+            consumptions = [
+                (r, self.calculate_consumption(r, task))
+                for r in available
+            ]
+
+            
+            feasible = [
+                (r, c) for (r, c) in consumptions
+                if r.battery >= c
+            ]
+            
+            if not feasible:
+
+                tasknotexec.append(task.id)
+
+            else:
+                
+                best, _ = min(feasible,key=lambda rc: rc[1])
+
+                best.busy=True
+
+                assignments.append((best.id,task.id))
 
 
-            if not available:
-
-                break
-
-
-            best=min(
-
-                available,
-
-                key=lambda r:
-                self.calculate_distance(
-                    r,
-                    task
-                )
-
-            )
-
-
-            best.busy=True
-
-
-            assignments.append(
-
-                (best.id,task.id)
-
-            )
-
-
-        return assignments
+        return assignments, tasknotexec

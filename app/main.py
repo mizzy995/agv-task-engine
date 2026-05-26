@@ -14,7 +14,7 @@ Allocator
 allocator=Allocator()
 
 
-results=allocator.allocate(
+results,notassignedtask = allocator.allocate(
 
 robots,
 tasks
@@ -31,6 +31,16 @@ print("----------------")
 
 for robot,task in results:
 
-    print(
-        f"{robot} ---> {task}"
-    )
+    print(f"{robot} ---> {task}")
+
+if notassignedtask:
+    
+    print()
+        
+    print("Not assigned tasks")
+
+    print("----------------")
+
+    for task_id in notassignedtask:
+
+        print(f"{task_id}")
