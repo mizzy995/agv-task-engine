@@ -8,21 +8,21 @@ Robot(
 id="R1",
 x=1,
 y=2,
-battery=90
+battery=25
 ),
 
 Robot(
 id="R2",
 x=7,
 y=4,
-battery=60
+battery=20
 ),
 
 Robot(
 id="R3",
 x=4,
 y=8,
-battery=70
+battery=15
 )
 
 ]

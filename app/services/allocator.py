@@ -37,7 +37,7 @@ class Allocator:
             available=[
 
                 r for r in robots
-                if not r.busy
+                if (not r.busy) and (r.battery >= 20)
 
             ]
 
