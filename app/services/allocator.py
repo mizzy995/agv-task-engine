@@ -1,5 +1,5 @@
 from math import sqrt
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 
 
 class Allocator:
@@ -12,73 +12,83 @@ class Allocator:
         return sqrt((robot.x - task.x) ** 2 + (robot.y - task.y) ** 2)
 
     def calculate_consumption(self, robot, task) -> float:
-        # energy model as previously defined: E = 2 * distance
+        # energy model: E = 2 * distance
         return 2 * self.calculate_distance(robot, task)
 
     def _required_energy(self, robot, task) -> float:
         return self.calculate_consumption(robot, task) * self.safety_factor
 
     def allocate(self, robots, tasks):
-        # NOTE: This function mutates robots[].busy like your current implementation.
-        # If you want an immutable approach later, we can refactor in Milestone 2.
-        assignments: List[Tuple[str, str, float, float, float]] = []
-        # (robot_id, task_id, required_energy, distance, consumed_energy_estimate)
-
+        """
+        Returns:
+          - assignments: List[Tuple[robot_id, task_id]]
+          - not_assigned: List[Dict{task_id, reasons}]
+          - decision_trace: List[Dict]
+        """
+        assignments: List[Tuple[str, str]] = []
         not_assigned: List[Dict[str, Any]] = []
+        decision_trace: List[Dict[str, Any]] = []
 
         sorted_tasks = sorted(tasks, key=lambda t: t.priority, reverse=True)
 
         for task in sorted_tasks:
-            # robots available by "hard" state constraint only (busy)
+            # robots available = not busy
             available = [r for r in robots if not r.busy]
 
+            task_trace: Dict[str, Any] = {
+                "task_id": task.id,
+                "priority": task.priority,
+                "available_robots": [r.id for r in available],
+                "candidates": [],
+                "selected_robot_id": None,
+                "failure_reasons": []
+            }
+
             if not available:
-                not_assigned.append({
-                    "task_id": task.id,
-                    "reasons": ["no_robot_available (all robots busy)"]
-                })
+                reason = "no_robot_available (all robots busy)"
+                not_assigned.append({"task_id": task.id, "reasons": [reason]})
+                task_trace["failure_reasons"] = [reason]
+                decision_trace.append(task_trace)
                 continue
 
-            # compute required energy for each available robot
-            candidates = []
+            candidates: List[Tuple[Any, float, float]] = []
             for r in available:
+                dist = self.calculate_distance(r, task)
                 required_energy = self._required_energy(r, task)
                 energy_ok = r.battery >= required_energy
-                # tie-break inputs:
-                # 1) required_energy (primary)
-                # 2) distance (secondary for stability)
-                distance = self.calculate_distance(r, task)
-                # 3) robot_id (tertiary deterministic)
+
+                task_trace["candidates"].append({
+                    "robot_id": r.id,
+                    "distance": dist,
+                    "required_energy": required_energy,
+                    "energy_ok": energy_ok
+                })
+
                 if energy_ok:
-                    candidates.append((r, required_energy, distance))
+                    candidates.append((r, required_energy, dist))
 
             if not candidates:
-                # Distinguish "battery insufficient for all available robots"
-                not_assigned.append({
-                    "task_id": task.id,
-                    "reasons": ["battery_insufficient_for_all_available_robots"]
-                })
+                reason = "battery_insufficient_for_all_available_robots"
+                not_assigned.append({"task_id": task.id, "reasons": [reason]})
+                task_trace["failure_reasons"] = [reason]
+                decision_trace.append(task_trace)
                 continue
 
-            # Deterministic tie-break:
-            # min by required_energy, then by distance, then by robot_id
             best_robot, best_required_energy, best_distance = min(
                 candidates,
-                key=lambda x: (x[1], x[2], x[0].id)
+                key=lambda x: (x[1], x[2], x[0].id)  # required_energy, distance, robot_id
             )
 
             best_robot.busy = True
-            assignments.append((
-                best_robot.id,
-                task.id,
-                best_required_energy,
-                best_distance,
-                self.calculate_consumption(best_robot, task)  # energy without safety_factor
-            ))
+            assignments.append((best_robot.id, task.id))
+            task_trace["selected_robot_id"] = best_robot.id
 
-        # Backward-compatible shape for main.py:
-        # results: [(robot_id, task_id)]
-        results_simple = [(r_id, t_id) for (r_id, t_id, _, _, _) in assignments]
+            # record selected cost summary (deterministic)
+            task_trace["selected_summary"] = {
+                "selected_required_energy": best_required_energy,
+                "selected_distance": best_distance
+            }
 
-        # richer diagnostics:
-        return assignments, not_assigned
+            decision_trace.append(task_trace)
+
+        return assignments, not_assigned, decision_trace
