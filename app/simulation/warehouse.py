@@ -2,84 +2,101 @@ from app.models.robot import Robot
 from app.models.task import Task
 
 
-def build_benchmarks():
-    benchmarks = []
+def build_stream():
+    robots = [
+        Robot(id="R1", x=0,  y=0,  battery=100, busy=False),
+        Robot(id="R2", x=10, y=0,  battery=100, busy=False),
+        Robot(id="R3", x=5,  y=10, battery=100, busy=False),
+    ]
 
-    # ===== Benchmark 1: tutti fattibili, nessun vincolo busy dopo t=0 =====
-    robots_1 = [
-        Robot(id="R1", x=1, y=1, battery=100, busy=False),
-        Robot(id="R2", x=9, y=1, battery=100, busy=False),
-        Robot(id="R3", x=5, y=9, battery=100, busy=False),
+    stream = [
+        {"task": Task(id="T1",  x=9,  y=1,  priority=8),  "arrival_time": 0.0},
+        {"task": Task(id="T2",  x=1,  y=1,  priority=7),  "arrival_time": 0.0},  # stesso tempo di T1
+        {"task": Task(id="T3",  x=6,  y=9,  priority=9),  "arrival_time": 0.3},
+        {"task": Task(id="T4",  x=2,  y=8,  priority=6),  "arrival_time": 0.5},
+        {"task": Task(id="T5",  x=8,  y=8,  priority=10), "arrival_time": 1.0},
+        {"task": Task(id="T6",  x=7,  y=7,  priority=10), "arrival_time": 1.0},  # tie sul priority
+        {"task": Task(id="T7",  x=0,  y=10, priority=5),  "arrival_time": 1.1},
+        {"task": Task(id="T8",  x=10, y=10, priority=4),  "arrival_time": 1.3},
+        {"task": Task(id="T9",  x=3,  y=2,  priority=9),  "arrival_time": 2.0},
+        {"task": Task(id="T10", x=4,  y=4,  priority=3),  "arrival_time": 2.2},
     ]
-    tasks_1 = [
-        Task(id="T1", x=8, y=2, priority=10),
-        Task(id="T2", x=4, y=8, priority=8),
-        Task(id="T3", x=2, y=6, priority=7),
-        Task(id="T4", x=6, y=2, priority=5),
-    ]
-    benchmarks.append(("B1_all_feasible", robots_1, tasks_1))
 
-    # ===== Benchmark 2: alcuni task non assegnabili per batteria (safety_factor) =====
-    # Nota: con safety_factor=1.10 e consumo=2*d, energia required = 2*d*1.10
-    robots_2 = [
-        Robot(id="R1", x=0, y=0, battery=5, busy=False),
-        Robot(id="R2", x=10, y=0, battery=8, busy=False),
-    ]
-    tasks_2 = [
-        Task(id="T1", x=1, y=0, priority=10),  # facile per R1
-        Task(id="T2", x=9, y=0, priority=9),   # facile per R2
-        Task(id="T3", x=5, y=0, priority=7),   # potrebbe risultare infeasible per entrambi
-    ]
-    benchmarks.append(("B2_battery_insufficient", robots_2, tasks_2))
+    return robots, stream
 
-    # ===== Benchmark 3: robot pochi -> coda pending (nessun preemption) =====
-    robots_3 = [
-        Robot(id="R1", x=0, y=0, battery=200, busy=False),
-        Robot(id="R2", x=10, y=0, battery=200, busy=False),
+def build_stream_battery_depletion_sequence():
+    robots = [
+        Robot(id="R1", x=0,  y=0,  battery=35, busy=False),
+        Robot(id="R2", x=10, y=0,  battery=35, busy=False),
+        Robot(id="R3", x=5,  y=10, battery=35, busy=False),
     ]
-    tasks_3 = [
-        Task(id="T1", x=1, y=0, priority=100),
-        Task(id="T2", x=9, y=0, priority=90),
-        Task(id="T3", x=2, y=0, priority=80),
-        Task(id="T4", x=8, y=0, priority=70),
-        Task(id="T5", x=5, y=0, priority=60),
-    ]
-    benchmarks.append(("B3_pending_queue_no_preemption", robots_3, tasks_3))
 
-    # ===== Benchmark 4: tie-break deterministico (stessa distanza/required) =====
-    # Due robot equidistanti dal task a pari required_energy; vince quello con robot_id minore.
-    robots_4 = [
-        Robot(id="R2", x=1, y=0, battery=100, busy=False),
-        Robot(id="R1", x=-1, y=0, battery=100, busy=False),
-    ]
-    tasks_4 = [
-        Task(id="T1", x=0, y=0, priority=10),
-    ]
-    benchmarks.append(("B4_tie_break_deterministic", robots_4, tasks_4))
+    stream = [
+        {"task": Task(id="T1",  x=1,  y=0,  priority=10), "arrival_time": 0.0},
+        {"task": Task(id="T2",  x=9,  y=0,  priority=9),  "arrival_time": 0.1},
+        {"task": Task(id="T3",  x=5,  y=9,  priority=8),  "arrival_time": 0.2},
 
-    # ===== Benchmark 5: tutti busy inizialmente (nessuna assegnazione) =====
-    robots_5 = [
-        Robot(id="R1", x=0, y=0, battery=100, busy=True),
-        Robot(id="R2", x=5, y=5, battery=100, busy=True),
-    ]
-    tasks_5 = [
-        Task(id="T1", x=1, y=1, priority=10),
-        Task(id="T2", x=6, y=6, priority=9),
-    ]
-    benchmarks.append(("B5_all_busy_start", robots_5, tasks_5))
+        {"task": Task(id="T4",  x=2,  y=1,  priority=10), "arrival_time": 0.9},
+        {"task": Task(id="T5",  x=8,  y=1,  priority=9),  "arrival_time": 1.0},
+        {"task": Task(id="T6",  x=6,  y=8,  priority=7),  "arrival_time": 1.1},
 
-    # ===== Benchmark 6: priorità decrescente con stessa area (verifica ordine e completamenti) =====
-    robots_6 = [
-        Robot(id="R1", x=0, y=0, battery=300, busy=False),
-        Robot(id="R2", x=10, y=10, battery=300, busy=False),
-        Robot(id="R3", x=20, y=0, battery=300, busy=False),
-    ]
-    tasks_6 = [
-        Task(id="T1", x=1, y=0, priority=9),
-        Task(id="T2", x=2, y=0, priority=8),
-        Task(id="T3", x=3, y=0, priority=7),
-        Task(id="T4", x=4, y=0, priority=6),
-    ]
-    benchmarks.append(("B6_priority_effect_on_completion", robots_6, tasks_6))
+        {"task": Task(id="T7",  x=0,  y=2,  priority=8),  "arrival_time": 1.8},
+        {"task": Task(id="T8",  x=10, y=2,  priority=7),  "arrival_time": 1.9},
+        {"task": Task(id="T9",  x=5,  y=7,  priority=6),  "arrival_time": 2.0},
 
-    return benchmarks
+        {"task": Task(id="T10", x=1,  y=4,  priority=5),  "arrival_time": 3.0},
+        {"task": Task(id="T11", x=9,  y=4,  priority=4),  "arrival_time": 3.2},
+        {"task": Task(id="T12", x=4,  y=6,  priority=3),  "arrival_time": 3.4},
+    ]
+
+    return robots, stream
+    
+def build_stream_battery_insufficient_burst():
+    robots = [
+        Robot(id="R1", x=0,  y=0,  battery=18, busy=False),
+        Robot(id="R2", x=20, y=0,  battery=18, busy=False),
+    ]
+
+    stream = [
+        # Prime missioni “brevi” per ridurre la batteria
+        {"task": Task(id="T1", x=2,  y=1,  priority=10), "arrival_time": 0.0},
+        {"task": Task(id="T2", x=18, y=1,  priority=9),  "arrival_time": 0.1},
+
+        {"task": Task(id="T3", x=3,  y=2,  priority=8),  "arrival_time": 0.6},
+        {"task": Task(id="T4", x=17, y=2,  priority=7),  "arrival_time": 0.7},
+
+        # Arrivano task più “lunghe”: dopo il consumo precedente dovrebbero diventare infeasible
+        {"task": Task(id="T5", x=10, y=10, priority=10), "arrival_time": 1.5},
+        {"task": Task(id="T6", x=12, y=12, priority=9),  "arrival_time": 1.6},
+        {"task": Task(id="T7", x=8,  y=14, priority=8),  "arrival_time": 1.7},
+        {"task": Task(id="T8", x=15, y=13, priority=7),  "arrival_time": 1.8},
+    ]
+
+    return robots, stream
+    
+
+def build_stream_priority_vs_battery():
+    robots = [
+        Robot(id="R1", x=0,  y=0,  battery=22, busy=False),
+        Robot(id="R2", x=12, y=0,  battery=22, busy=False),
+        Robot(id="R3", x=6,  y=12, battery=22, busy=False),
+    ]
+
+    stream = [
+        {"task": Task(id="T1",  x=2,  y=1,  priority=5),  "arrival_time": 0.0},
+        {"task": Task(id="T2",  x=10, y=1,  priority=5),  "arrival_time": 0.1},
+        {"task": Task(id="T3",  x=6,  y=11, priority=5),  "arrival_time": 0.2},
+
+        # burst di priorità alte: alcuni robot potrebbero essere vicini all’infeasible
+        {"task": Task(id="T4",  x=1,  y=0,  priority=20), "arrival_time": 1.0},
+        {"task": Task(id="T5",  x=11, y=0,  priority=18), "arrival_time": 1.1},
+        {"task": Task(id="T6",  x=6,  y=10, priority=16), "arrival_time": 1.2},
+
+        # ulteriori task medio-basse per vedere come si stabilizza la coda
+        {"task": Task(id="T7",  x=3,  y=2,  priority=7),  "arrival_time": 2.0},
+        {"task": Task(id="T8",  x=9,  y=2,  priority=6),  "arrival_time": 2.1},
+        {"task": Task(id="T9",  x=5,  y=9,  priority=4),  "arrival_time": 2.2},
+        {"task": Task(id="T10", x=0,  y=12, priority=3),  "arrival_time": 3.0},
+    ]
+
+    return robots, stream

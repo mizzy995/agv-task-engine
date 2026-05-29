@@ -1,0 +1,41 @@
+Milestone 1
+Rimosso filtro hardcoded battery >= 20
+Introdotto safety_factor fisso in Allocator:
+required_energy = energy_estimate * safety_factor
+fattibilità: robot.battery >= required_energy
+Tie-break deterministico (stabile e riproducibile)
+not_assigned ora include reasons per motivare task non assegnate
+Output e formattazione migliorati per leggibilità
+
+Milestone 2
+allocate() esteso per restituire anche decision trace (candidati, energy_ok, selezione e failure reasons)
+Introdotto simulatore event-driven minimale:
+batch: tutte le task “arrivano” a t=0
+no preemption (opzione 2): rialloca solo quando un robot diventa free
+durata deterministica con placeholder v=1.0, quindi T = d / v
+Gestita ambiguità su “not assigned”:
+not_assigned = finale (solo task rimaste pending/non completate)
+diagnostica aggiuntiva con timestamp: not_assigned_during_run (non usata come risultato finale)
+
+Milestone 3 — Streaming/online + metriche
+introdurre eventi reali TaskArrived durante l’esecuzione
+mantenere no-preemption (stabilità) e aggiungere metriche:
+throughput, latenza arrival→completion, utilization robot, count reallocations/riassegnazioni
+
+Milestone 4 — Battery update coerente nel tempo
+aggiornare batteria nel simulatore al completion (sottrarre energia stimata)
+decisioni future basate sulla batteria aggiornata
+
+Milestone 5 — Routing su mappa + caching
+sostituire euclideo con routing su grafo/reticolo con ostacoli
+introdurre caching dei costi/percorso per performance
+
+Milestone 6 — Zone e compatibilità task↔robot
+aggiungere hard constraints: zone proibite/restricted + compatibilità robot-capabilities / task requirements
+
+Milestone 7 — Test automation + regression suite
+automatizzare esecuzione benchmark con assertion su:
+completed/not_assigned finali senza duplicati
+reason categories
+determinismo tie-break
+metriche sotto soglie/rettangoli accettabili

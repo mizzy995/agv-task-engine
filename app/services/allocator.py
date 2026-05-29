@@ -3,17 +3,33 @@ from typing import List, Tuple, Dict, Any, Optional
 
 
 class Allocator:
-    def __init__(self, safety_factor: float = 1.10):
+    def __init__(self, safety_factor: float = 1.10, routing_engine=None):
         if safety_factor <= 0:
             raise ValueError("safety_factor must be > 0")
         self.safety_factor = safety_factor
+        self.routing_engine = routing_engine
 
-    def calculate_distance(self, robot, task) -> float:
-        return sqrt((robot.x - task.x) ** 2 + (robot.y - task.y) ** 2)
+    def calculate_distance(self, robot, task) -> Optional[float]:
+        """
+        If routing is present: return routing distance (int steps) or None.
+        Altrimenti: fallback euclideo (per compatibilità).
+        """
+        if self.routing_engine is None:
+            return sqrt((robot.x - task.x) ** 2 + (robot.y - task.y) ** 2)
+
+        start = (robot.x, robot.y)
+        goal = (task.x, task.y)
+        dist_steps = self.routing_engine.shortest_path_distance(start, goal)
+        return dist_steps  # int | None
 
     def calculate_consumption(self, robot, task) -> float:
-        # energy model: E = 2 * distance
-        return 2 * self.calculate_distance(robot, task)
+        # Milestone 5: consumo = 2 * distanza routing
+        dist = self.calculate_distance(robot, task)
+        if dist is None:
+            # Non dovrebbe essere chiamato da allocate() quando dist=None,
+            # ma gestiamo comunque.
+            return float("inf")
+        return 2 * dist
 
     def _required_energy(self, robot, task) -> float:
         return self.calculate_consumption(robot, task) * self.safety_factor
@@ -32,7 +48,6 @@ class Allocator:
         sorted_tasks = sorted(tasks, key=lambda t: t.priority, reverse=True)
 
         for task in sorted_tasks:
-            # robots available = not busy
             available = [r for r in robots if not r.busy]
 
             task_trace: Dict[str, Any] = {
@@ -52,23 +67,44 @@ class Allocator:
                 continue
 
             candidates: List[Tuple[Any, float, float]] = []
+            route_blocked_count = 0
+            route_ok_count = 0
+
             for r in available:
-                dist = self.calculate_distance(r, task)
+                dist = self.calculate_distance(r, task)  # float|None
+                if dist is None:
+                    route_blocked_count += 1
+                    task_trace["candidates"].append({
+                        "robot_id": r.id,
+                        "route_distance": None,
+                        "required_energy": None,
+                        "energy_ok": False,
+                        "route_ok": False
+                    })
+                    continue
+
+                route_ok_count += 1
                 required_energy = self._required_energy(r, task)
                 energy_ok = r.battery >= required_energy
 
                 task_trace["candidates"].append({
                     "robot_id": r.id,
-                    "distance": dist,
+                    "route_distance": dist,
                     "required_energy": required_energy,
-                    "energy_ok": energy_ok
+                    "energy_ok": energy_ok,
+                    "route_ok": True
                 })
 
                 if energy_ok:
+                    # key minima: (required_energy, distance, robot_id) come prima
                     candidates.append((r, required_energy, dist))
 
             if not candidates:
-                reason = "battery_insufficient_for_all_available_robots"
+                if route_ok_count == 0:
+                    reason = "no_route_available"
+                else:
+                    reason = "battery_insufficient_for_all_available_robots"
+
                 not_assigned.append({"task_id": task.id, "reasons": [reason]})
                 task_trace["failure_reasons"] = [reason]
                 decision_trace.append(task_trace)
@@ -76,17 +112,16 @@ class Allocator:
 
             best_robot, best_required_energy, best_distance = min(
                 candidates,
-                key=lambda x: (x[1], x[2], x[0].id)  # required_energy, distance, robot_id
+                key=lambda x: (x[1], x[2], x[0].id)
             )
 
             best_robot.busy = True
             assignments.append((best_robot.id, task.id))
             task_trace["selected_robot_id"] = best_robot.id
 
-            # record selected cost summary (deterministic)
             task_trace["selected_summary"] = {
                 "selected_required_energy": best_required_energy,
-                "selected_distance": best_distance
+                "selected_route_distance": best_distance
             }
 
             decision_trace.append(task_trace)
